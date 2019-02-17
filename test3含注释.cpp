@@ -1,4 +1,5 @@
 #include <iostream> 
+#include <cstdlib> 
 #include <vector>
 #include <string>
 #include <math.h>
@@ -7,91 +8,27 @@ using namespace std;
 
 enum Type { INT = 0, FLOAT, BIGINT };
 
-/** 构造 Int, Float, BigInt 类 
- * 每个类有两个构造函数：通过一个字符串（如：12321）和符号（1 代表正数，-1代表负数），或者通过属性 val 来直接构造
- * 对于 Int 类和 Float 类，属性 val 为其数值
- * 对于 BigInt 类，属性 val 为将其数值【倒序】存储的动态数组（如：12345678987，存储为：{7,8,9,8,7,6,5,4,3,2,1}）
+int sign(int x) {
+    return x >= 0 ? 1 : -1;
+}
+
+/** 构造 BigInt 类 
+ * BigInt 类有两个构造函数：通过一个字符串（如：12321）和符号（1 代表正数，-1代表负数），或者通过属性 val 来直接构造
+ * 属性 val 为将其数值【倒序】存储的动态数组（如：12345678987，存储为：{7,8,9,8,7,6,5,4,3,2,1}）
  */
-
-class Int {
-public: 
-    Int(string str, int sign_) {
-                                                cout << "int constructor1... " << endl;
-        val = 0;
-        strint = str;
-        sign = sign_;
-        val += str[0] - '0';
-        int i = 1;
-        while (i < str.length()) {
-            val *= 10;
-            val += str[i] - '0';
-            i++;
-        }
-        val = sign * val;
-                                                cout << "val: " << val << endl;
-    }
-    Int(int v):val(v) {
-                                                cout << "int constructor2... " << v << endl;
-        sign = val >= 0 ? 1 : -1;
-    }
-    ~Int() {cout << "int desstructor... " << endl;}
-public: 
-    string strint;
-    int sign;
-    int val;
-    static Type type;
-};
-Type Int::type = INT;
-
-class Float {
-public: 
-    Float(string str, int sign) {
-        strfloat = str;
-        val = 0;
-        int i = 0; 
-        while (str[i] != '.') {
-            val += str[i] - '0';
-            val *= 10;
-            i++;
-        }
-        val /= 10; i++;
-        int count = 1;
-        while (i < str.length()) {
-            val += (str[i] - '0') * pow(10, -count);
-            count++;
-            i++;
-        }
-        val = sign * val;
-    }
-    Float(float v):val(v) {}
-    ~Float() {}
-public: 
-    string strfloat;
-    float val;
-    static Type type;
-};
-Type Float::type = FLOAT;
 
 class BigInt {
 public: 
-    BigInt(string str, int sign_) {
-                                                                    cout << "bigint constructor1... " << endl;
-        strbigint = str;
-        sign = sign_;
-        val.clear();
-        for (int i = 0; i < str.length(); i++) {
-            val.insert(val.begin(), sign * (str[i] - '0'));
-        }
-                                                                    cout << "val(倒序): ";
-                                                                    for (int i = 0; i < val.size(); cout << val[i], i++);
-                                                                    cout << endl;
-    }
+    BigInt(string str, int sign_);
     BigInt(vector<int> v):val(v) {
                                                                     cout << "bigint constructor2... " << endl;
-        sign = val[val.size() - 1] > 0 ? 1 : -1;
+        sign = val[val.size() - 1] >= 0 ? 1 : -1;
     }
     ~BigInt() {cout << "bigint destructor... " << endl;}
-    friend BigInt bigAdd(BigInt x, BigInt y);
+    friend BigInt intTObigint(int x);
+    friend BigInt bigAdd(BigInt *x, BigInt *y);
+    friend BigInt bigMultiply(BigInt *x, BigInt *y);
+    friend BigInt bigPow(BigInt *x, int y);
 public: 
     string strbigint;
     int sign;
@@ -100,11 +37,112 @@ public:
 };
 Type BigInt::type = BIGINT;
 
+BigInt::BigInt(string str, int sign_) {
+                                                                cout << "bigint constructor1... " << endl;
+    strbigint = str;
+    sign = sign_;
+    val.clear();
+    for (int i = 0; i < str.length(); i++) {
+        val.insert(val.begin(), sign * (str[i] - '0'));
+    }
+}
+
+BigInt intTObigint(int x) {
+                                                                cout << "call intTobigint... " << x << endl;
+    vector<int> val;
+    val.clear();
+    int val_ = abs(x);
+    while (val_) {
+        val.push_back(sign(x) * (val_ % 10));
+        val_ /= 10;
+    }
+    if (val.size() == 0) val.push_back(0);
+    BigInt x_(val);
+    return x_;
+}
+
+BigInt bigAdd(BigInt *x, BigInt *y) {
+                                                                        cout << "call bigadd..." << endl;
+    vector<int> sum;
+    vector<int>::iterator iterx = x->val.begin();
+    vector<int>::iterator itery = y->val.begin();
+    while (iterx != x->val.end() && itery != y->val.end()) {
+        sum.push_back(*iterx + *itery);
+        iterx++;
+        itery++;
+    }
+    while (iterx != x->val.end()) {
+        sum.push_back(*iterx);
+        iterx++;
+    }
+    while (itery != y->val.end()) {
+        sum.push_back(*itery);
+        itery++;
+    }
+    while (sum.size() && sum.back() == 0) 
+        sum.pop_back();
+    if (sum.size() == 0) sum.push_back(0);
+    int up = 0;
+    for (int i = 0; i < sum.size(); i++) {
+        sum[i] += up;
+        if ((sign(sum.back()) == 1 && sum[i] >= 10) || (sign(sum.back()) == -1 && sum[i] > 0)) {
+            sum[i] -= 10;
+            up = 1;
+        }
+        else if ((sign(sum.back()) == 1 && sum[i] < 0) || (sign(sum.back()) == -1 && sum[i] <= -10)) {
+            sum[i] += 10;
+            up = -1;
+        }
+        else up = 0;
+    }
+    if (up != 0) sum.push_back(up);
+    while (sum.size() && sum.back() == 0) 
+        sum.pop_back();
+    if (sum.size() == 0) sum.push_back(0);
+    BigInt res(sum);
+    return res;
+}
+
+BigInt bigMultiply(BigInt *x, BigInt *y) {
+    vector<int> zero;
+    zero.push_back(0);
+    BigInt mul(zero);
+    int s1 = x->val.size(), s2 = y->val.size();
+    for (int i = 0; i < s2; i++) {
+        BigInt mid(zero);
+        for (int j = 0; j < abs(y->val[i]); j++) {
+            BigInt *pmid = new BigInt (mid);
+            mid = bigAdd(x, pmid);
+        }
+        mid.val.insert(mid.val.begin(), i, 0);
+        BigInt *pmid = new BigInt(mid);
+        BigInt *pmul = new BigInt(mul);
+        mul = bigAdd(pmul, pmid);
+    }
+    if (y->sign == -1) {
+        for (int i = 0; i < mul.val.size(); i++) 
+            mul.val[i] = -mul.val[i];
+    }
+    BigInt ans(mul.val);
+    return ans;
+}
+
+BigInt bigPow(BigInt *x, int y) {
+    vector<int> one_;
+    one_.push_back(1);
+    BigInt mul(one_);
+    for (int i = 0; i < y; i++) {
+        BigInt *pmul = new BigInt (mul);
+        mul = bigMultiply(pmul, x);
+    }
+    return mul;
+}
+
 /** 构造 Value 类 
- * Value 类属性中有 Int, Float, BigInt 指针各一个，初始为 NULL
+ * Value 类属性中有 BigInt 指针一个，初始为 NULL
  * Value 类有两个构造函数：通过已知属性 type 来直接构造；或者通过字符串和符号，首先确定 type，再构造
- * 对于第二个构造函数，若判断字符串为整数，则新建一个 Int 类对象存储之，并将 Int 指针指向这个对象。以此类推。
- * Value 类中定义了 getVal() 函数。对于每个 Value 类有且仅有一个非空指针，通过调用函数将其所指对象的 val 打印出来
+ * 对于第二个构造函数，若判断字符串为大整数，则新建一个 BigInt 类对象存储之，并将 pBigInt 指针指向这个对象
+ * Value 类中定义了 getVal() 函数。对于每个 Value 对象有且仅有一个 type 属性，通过调用函数将其对应的 value 打印出来
  */
 
 class Value {
@@ -112,21 +150,17 @@ public:
     Value(Type tp) {
                                                         cout << "value constructor1..." << endl;
         type = tp;
-        pInt = NULL;
-        pFloat = NULL;
         pBigInt = NULL;
     }
     Value(string str, int sign){
                                                         cout << "value constructor2..." << endl;
-        pInt = NULL;
-        pFloat = NULL;
         pBigInt = NULL;
         strvalue = str;
         int i;
         for (i = 0; i < strvalue.length(); i++) {
             if (str[i] == '.' && i <= 10) {
                 type = FLOAT;
-                pFloat = new Float(strvalue, sign);
+                vFloat = sign * atof(strvalue.c_str());
                 break;
             }
             else if (str[i] == '.' && i > 10) 
@@ -139,27 +173,30 @@ public:
         }
         if (i == strvalue.length()) {
             type = INT;
-            pInt = new Int(strvalue, sign);
+            vInt = sign * atoi(strvalue.c_str());
         }
     }
     ~Value() {cout << "value destructor... " << endl;}
     friend Value operator + (Value x, Value y);
+    friend Value operator * (Value x, Value y);
+    friend Value operator / (Value x, Value y);
+    friend Value operator ^ (Value x, Value y);
     void getVal();
-// private: 
+private: 
     string strvalue;
-    Int *pInt;
-    Float *pFloat;
+    int vInt;
+    float vFloat;
     BigInt *pBigInt;
     Type type;
 };
 
 void Value::getVal() {
                                                                 cout << "call getVal..." << endl;
-    if (pInt)
-        cout << pInt->val << endl;
-    else if (pFloat)
-        cout << pFloat->val << endl;
-    else if (pBigInt) {
+    if (type == INT)
+        cout << vInt << endl;
+    if (type == FLOAT)
+        cout << vFloat << endl;
+    if (type == BIGINT) {
         if (pBigInt->sign == -1) cout << "-";
         for (int i = pBigInt->val.size() - 1; i >= 0; i--) {
             cout << abs(pBigInt->val[i]);
@@ -170,152 +207,32 @@ void Value::getVal() {
 
 ////////// Overload Operators //////////
 
-BigInt intTObigint(Int *x) {
-                                                                cout << "call intTobigint... " << x->val << endl;
-    vector<int> val;
-    int val_ = abs(x->val);
-    while (val_) {
-        val.push_back(x->sign * (val_ % 10));
-        val_ /= 10;
-    }
-    BigInt x_(val);
-                                                                cout << "val(倒序): ";
-                                                                for (int i = 0; i < val.size(); cout << val[i], i++);
-                                                                cout << endl;
-    return x_;
-}
-
-BigInt bigAdd(BigInt *x, BigInt *y) {
-                                                                cout << "call bigAdd... " << endl;
-    if (x->sign == y->sign) {
-        int sign = x->sign;
-        vector<int> sum;
-        vector<int>::iterator iterx = x->val.begin();
-        vector<int>::iterator itery = y->val.begin();
-        int up = 0;
-        while (iterx != x->val.end() && itery != y->val.end()) {
-            int sum_ = abs(*iterx) + abs(*itery) + up;
-            if (sum_ >= 10) {
-                sum_ -= 10;
-                up = 1;
-            }
-            else up = 0;
-            sum.push_back(sign * sum_);
-            iterx++;
-            itery++;
-        }
-        while (iterx != x->val.end()) {
-            int sum_ = abs(*iterx) + up;
-            if (sum_ >= 10) {
-                sum_ -= 10;
-                up = 1;
-            }
-            else up = 0;
-            sum.push_back(sign * sum_);
-            iterx++;
-        }
-        while (itery != y->val.end()) {
-            int sum_ = abs(*itery) + up;
-            if (sum_ >= 10) {
-                sum_ -= 10;
-                up = 1;
-            }
-            else up = 0;
-            sum.push_back(sign * sum_);
-            itery++;
-        }
-        if (up == 1) 
-            sum.push_back(sign);
-        BigInt res(sum);
-                                                                cout << "val(倒序): ";
-                                                                for (int i = 0; i < sum.size(); cout << sum[i], i++);
-                                                                cout << endl;
-        return res;
-    }
-    else {
-        vector<int> sub;
-        vector<int>::iterator iterx = x->val.begin();
-        vector<int>::iterator itery = y->val.begin();
-        while (iterx != x->val.end() && itery != y->val.end()) {
-            sub.push_back(*iterx + *itery);
-            iterx++;
-            itery++;
-        }
-        while (iterx != x->val.end()) {
-            sub.push_back(*iterx);
-            iterx++;
-        }
-        while (itery != y->val.end()) {
-            sub.push_back(*itery);
-            itery++;
-        }
-        while (sub[sub.size() - 1] == 0) {
-            sub.pop_back();
-        }
-        if (sub[sub.size() - 1] < 0) {
-            int up = 0;
-            for (int i = 0; i < sub.size(); i++) {
-                if (sub[i] + up > 0) {
-                    sub[i] = sub[i] + up - 10;
-                    up = 1;
-                }
-                else {
-                    sub[i] += up;
-                    up = 0;
-                }
-            }
-        }
-        else {
-            int up = 0;
-            for (int i = 0; i < sub.size(); i++) {
-                if (sub[i] + up < 0) {
-                    sub[i] = sub[i] + up + 10;
-                    up = -1;
-                }
-                else {
-                    sub[i] += up;
-                    up = 0;
-                }
-            }
-        }
-        while (sub[sub.size() - 1] == 0) {
-            sub.pop_back();
-        }
-        BigInt res(sub);
-                                                                cout << "val(倒序): ";
-                                                                for (int i = 0; i < sub.size(); cout << sub[i], i++);
-                                                                cout << endl;
-        return res;
-    }
-}
-
-
 Value operator + (Value x, Value y) {
     if (x.type == INT && y.type == INT) {
         Value sum(INT);
-        sum.pInt = new Int(x.pInt->val + y.pInt->val);
+        sum.vInt = x.vInt + y.vInt;
         return sum;
     }
     if (x.type == INT && y.type == FLOAT) {
         Value sum(FLOAT);
-        sum.pFloat = new Float((float)x.pInt->val + y.pFloat->val);
+        sum.vFloat = x.vInt + y.vFloat;
         return sum;
     }
     if (x.type == INT && y.type == BIGINT) {
         Value sum(BIGINT);
-        BigInt x_ = intTObigint(x.pInt);
+        BigInt x_ = intTObigint(x.vInt);
         BigInt res = bigAdd(&x_, y.pBigInt);
         sum.pBigInt = new BigInt(res);
         return sum;
     }
     if (x.type == FLOAT && y.type == INT) {
         Value sum(FLOAT);
-        sum.pFloat = new Float(x.pFloat->val + (float)y.pInt->val);
+        sum.vFloat = x.vFloat + y.vInt;
         return sum;
     }
     if (x.type == FLOAT && y.type == FLOAT) {
         Value sum(FLOAT);
-        sum.pFloat = new Float(x.pFloat->val + y.pFloat->val);
+        sum.vFloat = x.vFloat + y.vFloat;
         return sum;
     }
     if (x.type == FLOAT && y.type == BIGINT) {
@@ -323,7 +240,7 @@ Value operator + (Value x, Value y) {
     }
     if (x.type == BIGINT && y.type == INT) {
         Value sum(BIGINT);
-        BigInt y_ = intTObigint(y.pInt);
+        BigInt y_ = intTObigint(y.vInt);
         BigInt res = bigAdd(&y_, x.pBigInt);
         sum.pBigInt = new BigInt(res);
         return sum;
@@ -336,6 +253,130 @@ Value operator + (Value x, Value y) {
         BigInt res = bigAdd(x.pBigInt, y.pBigInt);
         sum.pBigInt = new BigInt(res);
         return sum;
+    }
+    else throw runtime_error("type error");
+}
+
+Value operator * (Value x, Value y) {
+    if (x.type == INT && y.type == INT) {
+        Value mul(INT);
+        mul.vInt = x.vInt * y.vInt;
+        return mul;
+    }
+    if (x.type == INT && y.type == FLOAT) {
+        Value mul(FLOAT);
+        mul.vFloat = x.vInt * y.vFloat;
+        return mul;
+    }
+    if (x.type == INT && y.type == BIGINT) {
+        Value mul(BIGINT);
+        BigInt x_ = intTObigint(x.vInt);
+        BigInt res = bigMultiply(&x_, y.pBigInt);
+        mul.pBigInt = new BigInt(res);
+        return mul;
+    }
+    if (x.type == FLOAT && y.type == INT) {
+        Value mul(FLOAT);
+        mul.vFloat = x.vFloat * y.vInt;
+        return mul;
+    }
+    if (x.type == FLOAT && y.type == FLOAT) {
+        Value mul(FLOAT);
+        mul.vFloat = x.vFloat * y.vFloat;
+        return mul;
+    }
+    if (x.type == FLOAT && y.type == BIGINT) {
+        throw runtime_error("unsupported operation: float * bigInt");
+    }
+    if (x.type == BIGINT && y.type == INT) {
+        Value mul(BIGINT);
+        BigInt y_ = intTObigint(y.vInt);
+        BigInt res = bigMultiply(&y_, x.pBigInt);
+        mul.pBigInt = new BigInt(res);
+        return mul;
+    }
+    if (x.type == BIGINT && y.type == FLOAT) {
+        throw runtime_error("unsupported operation: float * bigInt");
+    }
+    if (x.type == BIGINT && y.type == BIGINT) {
+        Value mul(BIGINT);
+        BigInt res = bigMultiply(x.pBigInt, y.pBigInt);
+        mul.pBigInt = new BigInt(res);
+        return mul;
+    }
+    else throw runtime_error("type error");
+}
+
+Value operator / (Value x, Value y) {
+    if (x.type == INT && y.type == INT) {
+        if (x.vInt / y.vInt == (int)x.vInt / y.vInt) {
+            Value div(INT);
+            div.vInt = x.vInt / y.vInt;
+            return div;
+        }
+        else {
+            Value div(FLOAT);
+            div.vFloat = x.vInt / y.vInt;
+            return div;
+        }
+    }
+    if (x.type == INT && y.type == FLOAT) {
+        if (x.vInt / y.vFloat == (int)x.vInt / y.vFloat) {
+            Value div(INT);
+            div.vInt = x.vInt / y.vFloat;
+            return div;
+        }
+        else {
+            Value div(FLOAT);
+            div.vFloat = x.vInt / y.vFloat;
+            return div;
+        }
+    }
+    if (x.type == FLOAT && y.type == INT) {
+        Value div(FLOAT);
+        div.vFloat = x.vFloat / y.vInt;
+        return div;
+    }
+    if (x.type == FLOAT && y.type == FLOAT) {
+        if (x.vFloat / y.vFloat == (int)x.vFloat / y.vFloat) {
+            Value div(INT);
+            div.vInt = x.vFloat / y.vFloat;
+            return div;
+        }
+        else {
+            Value div(FLOAT);
+            div.vFloat = x.vFloat / y.vFloat;
+            return div;
+        }
+    }
+    if (x.type == BIGINT || y.type == INT) {
+        throw runtime_error("unsupported operation: ... / bigInt");
+    }
+    else throw runtime_error("type error");
+}
+
+Value operator ^ (Value x, Value y) {
+    if (x.type == INT && y.type == INT) {
+        Value mul(INT);
+        mul.vInt = pow(x.vInt, y.vInt);
+        return mul;
+    }
+    if (x.type == FLOAT && y.type == INT) {
+        Value mul(FLOAT);
+        mul.vFloat = pow(x.vFloat, y.vInt);
+        return mul;
+    }
+    if (x.type == BIGINT && y.type == INT) {
+        Value mul(BIGINT);
+        BigInt res = bigPow(x.pBigInt, y.vInt);
+        mul.pBigInt = new BigInt(res);
+        return mul;
+    }
+    if (y.type == FLOAT) {
+        throw runtime_error("unsupported operation: ... ^ float");
+    }
+    if (y.type == BIGINT) {
+        throw runtime_error("unsupported operation: ... ^ bigInt");
     }
     else throw runtime_error("type error");
 }
@@ -402,9 +443,9 @@ Value Calculator::compute(int start, int end) {
 void Calculator::getResult() {
                                                                     cout << "call getResult... " << endl;
     Value ans = compute(0, ini_input.length());
+    result = new Value(ans);
     memstr.push_back(ini_input);
     memres.push_back(ans);
-    result = new Value(ans);
 }
 
 void Calculator::printResult() { 
